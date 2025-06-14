@@ -4,7 +4,10 @@ import sys
 import math
 from enum import Enum, auto
 from typing import List, Dict, Optional, Callable
-from pygame.locals import *
+from pygame.locals import (
+    K_a, K_d, K_w, K_SPACE, K_ESCAPE, K_r,
+    QUIT, MOUSEBUTTONDOWN
+)
 
 # Инициализация Pygame
 pygame.init()
@@ -20,7 +23,7 @@ PLATFORM_COUNT = 18
 MAX_ENEMIES = 10
 SWORD_RANGE = 80
 SWORD_ANGLE_SPEED = 35
-SWORD_DAMAGE = 45
+SWORD_DAMAGE = 50  # Изменено для баланса
 MIN_VERTICAL_GAP = 140
 MIN_HORIZONTAL_GAP = 90
 PLAYER_SPEED = 7
@@ -28,7 +31,7 @@ ENEMY_SPEED_RANGE = (1.8, 3.0)
 INVINCIBILITY_DURATION = 45
 ATTACK_COOLDOWN = 20
 PLAYER_HEALTH = 100
-ENEMY_HEALTH = 80
+ENEMY_HEALTH = 50  # Изменено для баланса
 
 # Цвета
 BLACK = (0, 0, 0, 0)
@@ -131,9 +134,9 @@ class Entity(pygame.sprite.Sprite):
     def check_platform_collision(self, platforms: pygame.sprite.Group) -> None:
         self.on_ground = False
         for platform in platforms:
-            if (self.rect.colliderect(platform.rect) and \
-               self.velocity_y > 0 and \
-               self.rect.bottom > platform.rect.top + 5:
+            if (self.rect.colliderect(platform.rect) and 
+                self.velocity_y > 0 and 
+                self.rect.bottom > platform.rect.top + 5):
                 self.rect.bottom = platform.rect.top
                 self.velocity_y = 0
                 self.on_ground = True
@@ -155,7 +158,7 @@ class Player(Entity):
         self.dance_timer = 0
     
     def _create_animations(self) -> Dict[PlayerState, Animation]:
-        animations = {
+        return {
             PlayerState.IDLE: self._create_idle_animation(),
             PlayerState.WALKING: self._create_walk_animation(),
             PlayerState.JUMPING: self._create_jump_animation(),
@@ -163,7 +166,165 @@ class Player(Entity):
             PlayerState.HURT: self._create_hurt_animation(),
             PlayerState.DANCING: self._create_dance_animation()
         }
-        return animations
+    
+    def _create_idle_animation(self) -> Animation:
+        frames = []
+        for i in range(4):
+            frame = pygame.Surface((70, 80), pygame.SRCALPHA)
+            # Тело
+            pygame.draw.ellipse(frame, (220, 180, 110), (15, 30, 50, 40))
+            # Голова
+            pygame.draw.circle(frame, (220, 180, 110), (45, 20), 20)
+            # Глаза
+            eye_offset = i % 2 * 2
+            pygame.draw.circle(frame, (80, 80, 160), (40 + eye_offset, 15), 4)
+            pygame.draw.circle(frame, (80, 80, 160), (50 + eye_offset, 15), 4)
+            # Уши
+            pygame.draw.polygon(frame, (220, 180, 110), 
+                              [(45, 0), (55, 15), (35, 15)])
+            # Лапы
+            pygame.draw.ellipse(frame, (220, 180, 110), (10, 60, 20, 15))
+            pygame.draw.ellipse(frame, (220, 180, 110), (50, 60, 20, 15))
+            # Хвост
+            pygame.draw.ellipse(frame, (220, 180, 110), (5, 40, 15, 10))
+            # Меч
+            pygame.draw.line(frame, SWORD_COLOR, (40, 40), (60, 20), 5)
+            pygame.draw.circle(frame, WHITE, (60, 20), 3)
+            
+            frames.append(frame)
+        return Animation(frames, 0.15)
+    
+    def _create_walk_animation(self) -> Animation:
+        frames = []
+        for i in range(6):
+            frame = pygame.Surface((70, 80), pygame.SRCALPHA)
+            # Тело с анимацией ходьбы
+            body_offset = 5 * math.sin(i * math.pi / 3)
+            pygame.draw.ellipse(frame, (220, 180, 110), 
+                              (15 + body_offset, 30, 50, 40))
+            # Голова
+            head_offset = 3 * math.sin(i * math.pi / 1.5)
+            pygame.draw.circle(frame, (220, 180, 110), 
+                              (45 + head_offset, 20), 20)
+            # Глаза
+            pygame.draw.circle(frame, (80, 80, 160), 
+                              (40 + head_offset, 15), 4)
+            pygame.draw.circle(frame, (80, 80, 160), 
+                              (50 + head_offset, 15), 4)
+            # Уши
+            pygame.draw.polygon(frame, (220, 180, 110), 
+                              [(45 + head_offset, 0), 
+                               (55 + head_offset, 15), 
+                               (35 + head_offset, 15)])
+            # Лапы с анимацией ходьбы
+            paw_offset = 10 * math.sin(i * math.pi / 3)
+            pygame.draw.ellipse(frame, (220, 180, 110), 
+                              (10, 60 + paw_offset, 20, 15))
+            pygame.draw.ellipse(frame, (220, 180, 110), 
+                              (50, 60 - paw_offset, 20, 15))
+            # Хвост
+            tail_angle = 15 * math.sin(i * math.pi / 3)
+            pygame.draw.ellipse(frame, (220, 180, 110), 
+                              (5, 40, 15 + tail_angle, 10))
+            # Меч
+            pygame.draw.line(frame, SWORD_COLOR, 
+                           (40 + body_offset, 40), 
+                           (60 + body_offset, 20), 5)
+            pygame.draw.circle(frame, WHITE, 
+                             (60 + body_offset, 20), 3)
+            
+            frames.append(frame)
+        return Animation(frames, 0.2)
+    
+    def _create_jump_animation(self) -> Animation:
+        frame = pygame.Surface((70, 80), pygame.SRCALPHA)
+        # Тело в прыжке
+        pygame.draw.ellipse(frame, (220, 180, 110), (15, 25, 50, 45))
+        # Голова
+        pygame.draw.circle(frame, (220, 180, 110), (45, 15), 20)
+        # Глаза (узкие)
+        pygame.draw.line(frame, (80, 80, 160), (40, 15), (43, 15), 2)
+        pygame.draw.line(frame, (80, 80, 160), (47, 15), (50, 15), 2)
+        # Уши прижаты
+        pygame.draw.polygon(frame, (220, 180, 110), 
+                          [(45, 5), (50, 15), (40, 15)])
+        # Лапы вытянуты
+        pygame.draw.ellipse(frame, (220, 180, 110), (10, 55, 20, 20))
+        pygame.draw.ellipse(frame, (220, 180, 110), (50, 55, 20, 20))
+        # Хвост поднят
+        pygame.draw.ellipse(frame, (220, 180, 110), (5, 30, 20, 15))
+        # Меч
+        pygame.draw.line(frame, SWORD_COLOR, (40, 35), (60, 15), 5)
+        pygame.draw.circle(frame, WHITE, (60, 15), 3)
+        
+        return Animation([frame], 0.1, loop=False)
+    
+    def _create_attack_animation(self) -> Animation:
+        frames = []
+        for i in range(5):
+            frame = pygame.Surface((90, 80), pygame.SRCALPHA)
+            # Тело в атаке
+            body_offset = 10 * (i / 4)
+            pygame.draw.ellipse(frame, (220, 180, 110), 
+                              (15 + body_offset, 30, 50, 40))
+            # Голова
+            pygame.draw.circle(frame, (220, 180, 110), 
+                              (45 + body_offset, 20), 20)
+            # Глаза (злые)
+            pygame.draw.line(frame, (160, 60, 60), (40, 15), (43, 18), 3)
+            pygame.draw.line(frame, (160, 60, 60), (47, 15), (50, 18), 3)
+            # Уши
+            pygame.draw.polygon(frame, (220, 180, 110), 
+                              [(45 + body_offset, 0), 
+                               (55 + body_offset, 15), 
+                               (35 + body_offset, 15)])
+            # Лапы
+            pygame.draw.ellipse(frame, (220, 180, 110), 
+                              (10 + body_offset, 60, 20, 15))
+            pygame.draw.ellipse(frame, (220, 180, 110), 
+                              (50 + body_offset, 60, 20, 15))
+            # Меч с анимацией атаки
+            sword_angle = 120 + i * 30
+            start_pos = (55 + body_offset, 35)
+            end_pos = (
+                start_pos[0] + 50 * math.cos(math.radians(sword_angle)),
+                start_pos[1] + 50 * math.sin(math.radians(sword_angle)))
+            pygame.draw.line(frame, SWORD_COLOR, start_pos, end_pos, 6)
+            pygame.draw.circle(frame, WHITE, (int(end_pos[0]), int(end_pos[1])), 4)
+            
+            frames.append(frame)
+        return Animation(frames, 0.25, loop=False)
+    
+    def _create_hurt_animation(self) -> Animation:
+        frames = []
+        for i in range(4):
+            frame = pygame.Surface((70, 80), pygame.SRCALPHA)
+            # Тело
+            pygame.draw.ellipse(frame, (220, 180, 110), (15, 30, 50, 40))
+            # Голова (наклонена)
+            head_offset = 5 * math.sin(i * math.pi / 2)
+            pygame.draw.ellipse(frame, (220, 180, 110), 
+                              (40 + head_offset, 15, 30, 30))
+            # Глаза (крестики)
+            pygame.draw.line(frame, (160, 60, 60), (40, 15), (45, 20), 3)
+            pygame.draw.line(frame, (160, 60, 60), (45, 15), (40, 20), 3)
+            pygame.draw.line(frame, (160, 60, 60), (50, 15), (55, 20), 3)
+            pygame.draw.line(frame, (160, 60, 60), (55, 15), (50, 20), 3)
+            # Уши прижаты
+            pygame.draw.polygon(frame, (220, 180, 110), 
+                              [(45 + head_offset, 5), 
+                               (50 + head_offset, 15), 
+                               (40 + head_offset, 15)])
+            # Лапы
+            pygame.draw.ellipse(frame, (220, 180, 110), (10, 60, 20, 15))
+            pygame.draw.ellipse(frame, (220, 180, 110), (50, 60, 20, 15))
+            # Меч (выпал)
+            if i < 2:
+                pygame.draw.line(frame, SWORD_COLOR, (40, 50), (60, 40), 5)
+                pygame.draw.circle(frame, WHITE, (60, 40), 3)
+            
+            frames.append(frame)
+        return Animation(frames, 0.15, loop=False)
     
     def _create_dance_animation(self) -> Animation:
         frames = []
@@ -562,7 +723,6 @@ class Game:
                 max(10, min(40, 20 + y//30)),
                 max(20, min(60, 30 + y//20)),
                 max(30, min(100, 50 + y//10))
-            )
             pygame.draw.line(surface, color, (0, y), (SCREEN_WIDTH, y))
         
         # Дальние деревья
@@ -601,9 +761,11 @@ class Game:
         return surface
     
     def spawn_enemies(self) -> None:
+        if len(self.enemies) >= MAX_ENEMIES:
+            return
+            
         for platform in self.platforms:
             if (platform.rect.y < SCREEN_HEIGHT - 150 and 
-                len(self.enemies) < MAX_ENEMIES and
                 random.random() < 0.5 and
                 not platform.is_ground):
                 
@@ -697,6 +859,7 @@ class Game:
         for enemy in list(self.enemies):
             if enemy.health <= 0:
                 enemy.kill()
+                self.score += ENEMY_SCORE
                 # Спавн нового врага с шансом 50%
                 if random.random() < 0.5 and len(self.enemies) < MAX_ENEMIES:
                     available_platforms = [p for p in self.platforms 
@@ -725,6 +888,10 @@ class Game:
         # Проверка выхода за пределы экрана
         if self.player.rect.top > SCREEN_HEIGHT:
             self.state = GameState.GAME_OVER
+        
+        # Спавн новых врагов
+        if random.random() < 0.01 and len(self.enemies) < MAX_ENEMIES:
+            self.spawn_enemies()
     
     def draw_main_menu(self) -> None:
         self.screen.blit(self.menu_background, (0, 0))
